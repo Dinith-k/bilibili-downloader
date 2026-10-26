@@ -1,0 +1,20 @@
+# personal data and large files: never published (anchored to the project root)
+/data/
+/downloads/
+/previews/
+/dist/
+/models/*.chpt
+/models/*.yaml
+.venv/
+wheels/
+__pycache__/
+*.pyc
+.ready
+.declined
+
+# the separation toolkit: publish only the BandIt model code and its licence
+/tools/sep/*
+!/tools/sep/LICENSE
+!/tools/sep/models/
+/tools/sep/models/*
+!/tools/sep/models/bandit/

@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilibili Downloader</title>
+<style>
+  :root { --bg:#f4f6fa; --card:#fff; --text:#1b1f27; --muted:#6b7280; --accent:#fb7299; --border:#e5e7eb; --ok:#16a34a; --err:#dc2626; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1115; --card:#181b22; --text:#e8eaee; --muted:#9aa1ad; --border:#2a2e38; --ok:#4ade80; --err:#f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, sans-serif; }
+  .wrap { max-width:980px; margin:0 auto; padding:16px; }
+  header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  h1 { margin:0; font-size:1.3rem; }
+  h2 { margin:0 0 12px; font-size:1.05rem; }
+  nav { display:flex; gap:4px; background:var(--card); border:1px solid var(--border); border-radius:12px; padding:4px; }
+  nav button { background:transparent; color:var(--muted); padding:7px 14px; border-radius:9px; }
+  nav button.active { background:var(--accent); color:#fff; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:14px; }
+  .tab[hidden], [hidden] { display:none !important; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row.wrap-row { flex-wrap:wrap; }
+  .grow { flex:1; min-width:0; }
+  input, select { min-width:0; padding:9px 12px; border:1px solid var(--border); border-radius:10px;
+                  background:var(--bg); color:var(--text); font:inherit; }
+  input[type=text], input[type=url], input:not([type]), select { flex:1; }
+  input[type=checkbox] { flex:none; width:auto; accent-color:var(--accent); }
+  button { padding:9px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff;
+           font:inherit; font-weight:600; cursor:pointer; white-space:nowrap; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  button.small { padding:5px 11px; font-size:.85rem; }
+  button.ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  button.danger { background:transparent; color:var(--err); border:1px solid var(--border); }
+  .muted { color:var(--muted); font-size:.85rem; }
+  .err { color:var(--err); } .ok { color:var(--ok); }
+  #msg { min-height:1.3em; margin:6px 0; font-size:.9rem; }
+
+  /* channels */
+  .channels { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; margin-top:14px; }
+  .chan { border:1px solid var(--border); border-radius:12px; padding:12px; cursor:pointer; background:var(--bg); }
+  .chan.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .chan b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chan .btns { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+  .mini { height:6px; border-radius:4px; background:var(--border); overflow:hidden; margin-top:6px; }
+  .mini > div { height:100%; background:var(--accent); width:0; transition:width .4s; }
+
+  /* queue */
+  #queueBox { position:sticky; top:8px; z-index:5; border-color:var(--accent); }
+  .bar { height:10px; border-radius:6px; background:var(--border); overflow:hidden; margin:6px 0; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:width .4s; }
+
+  /* video list */
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; }
+  .toolbar input[type=search] { flex:1; min-width:160px; }
+  .vlist { display:flex; flex-direction:column; gap:6px; }
+  .vrow { display:grid; grid-template-columns:auto 120px 1fr auto; gap:12px; align-items:center;
+          padding:8px; border:1px solid var(--border); border-radius:10px; }
+  .vrow img { width:120px; aspect-ratio:16/9; object-fit:cover; border-radius:6px; background:var(--border); }
+  .vrow .t { font-weight:600; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+  .vstat { display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:130px; text-align:right; }
+  .badge { font-size:.78rem; padding:2px 8px; border-radius:20px; border:1px solid var(--border); color:var(--muted); }
+  .badge.done { color:var(--ok); border-color:var(--ok); }
+  .badge.bad { color:var(--err); border-color:var(--err); }
+  .badge.run { color:var(--accent); border-color:var(--accent); }
+  @media (max-width:640px) { .vrow { grid-template-columns:auto 1fr; } .vrow img { display:none; } .vstat { grid-column:1 / -1; align-items:flex-start; text-align:left; } }
+
+  /* library */
+  .lrow { display:grid; grid-template-columns:1fr auto; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .lrow:last-child { border-bottom:0; }
+  .lrow .btns { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+
+  /* trim + crop widget */
+  .trow { display:flex; align-items:center; gap:10px; margin:6px 0; }
+  .trow > span:first-child { width:44px; color:var(--muted); flex:none; }
+  .trow input[type=range] { flex:1; padding:0; accent-color:var(--accent); }
+  .trow b { width:64px; text-align:right; font-variant-numeric:tabular-nums; flex:none; }
+  label.chk { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .crop .body { margin-top:10px; }
+  .crop .presetRow { margin-bottom:8px; }
+  .crop .customWrap { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; }
+  .crop .customWrap input { width:56px; flex:none; padding:6px; }
+  .cstage { position:relative; width:100%; max-width:640px; overflow:hidden; border-radius:10px; margin:8px 0; background:#000;
+            touch-action:none; user-select:none; aspect-ratio:16/9; }
+  .cstage img { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; pointer-events:none; }
+  .cstage .cmsg { position:absolute; inset:auto 8px 8px 8px; color:#fff; font-size:.8rem; text-shadow:0 1px 3px #000; pointer-events:none; }
+  .cbox { position:absolute; border:2px solid var(--accent); box-shadow:0 0 0 9999px rgba(0,0,0,.6); cursor:move; box-sizing:border-box; }
+  .cbox i { position:absolute; width:18px; height:18px; margin:-9px 0 0 -9px; background:var(--accent);
+            border:2px solid #fff; border-radius:50%; box-sizing:border-box; }
+  .cbox i[data-h="nw"] { left:0; top:0; cursor:nwse-resize; }
+  .cbox i[data-h="ne"] { left:100%; top:0; cursor:nesw-resize; }
+  .cbox i[data-h="sw"] { left:0; top:100%; cursor:nesw-resize; }
+  .cbox i[data-h="se"] { left:100%; top:100%; cursor:nwse-resize; }
+  .cbox i[data-h="n"] { left:50%; top:0; cursor:ns-resize; }
+  .cbox i[data-h="s"] { left:50%; top:100%; cursor:ns-resize; }
+  .cbox i[data-h="w"] { left:0; top:50%; cursor:ew-resize; }
+  .cbox i[data-h="e"] { left:100%; top:50%; cursor:ew-resize; }
+  .cstage:not(.free) i.edge { display:none; }
+  .chset { border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin-bottom:12px; }
+  .chset summary { cursor:pointer; font-weight:600; }
+  .chset .chbody { margin-top:10px; }
+  /* caption-strip editor: a full-width band that can only move / resize vertically */
+  .crop.region .cbox i:not([data-h="n"]):not([data-h="s"]) { display:none; }
+  .crop.region .cbox { border-left:0; border-right:0; }
+  .players { display:flex; flex-wrap:wrap; gap:16px; margin-top:10px; }
+  .players audio { max-width:100%; }
+  #qPreview { display:none; margin-top:16px; }
+  #qPreview > img { width:100%; max-width:640px; border-radius:10px; aspect-ratio:16/9; object-fit:cover; background:var(--border); }
+  #trimBox { display:none; margin-top:10px; }
+  .note { margin:14px 0 0; color:var(--muted); font-size:.78rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Bilibili Downloader</h1>
+    <nav id="tabs">
+      <button type="button" data-tab="dashboard" class="active">Dashboard</button>
+      <button type="button" data-tab="quick">Quick download</button>
+      <button type="button" data-tab="library">Library</button>
+      <button type="button" data-tab="settings">Settings</button>
+    </nav>
+  </header>
+
+  <!-- ===================== Dashboard ===================== -->
+  <section id="tab-dashboard" class="tab">
+    <div id="queueBox" class="card" hidden>
+      <div class="row">
+        <b class="grow" id="qTitle">Downloading</b>
+        <button type="button" class="small danger" id="qStop">Stop all</button>
+      </div>
+      <div class="bar"><div id="qBar"></div></div>
+      <div class="muted" id="qInfo"></div>
+    </div>
+
+    <div class="card">
+      <h2>Channels</h2>
+      <form id="chanForm" class="row wrap-row">
+        <input id="chanInput" type="text" placeholder="Channel link (space.bilibili.com/... or bilibili.com/list/...), user ID, or any video link from the channel" required>
+        <button id="chanAdd">Add channel</button>
+      </form>
+      <p class="muted" style="margin:6px 0 0">Bilibili blocks looking channels up by name from outside its own website, so paste a link or ID. The videos are listed and saved here.</p>
+      <div id="chanMsg"></div>
+      <div class="channels" id="channels"></div>
+    </div>
+
+    <div class="card" id="videosCard" hidden>
+      <div class="row wrap-row" style="margin-bottom:10px">
+        <h2 class="grow" id="vTitle" style="margin:0">Videos</h2>
+        <button type="button" id="dlNew">Download all new</button>
+        <button type="button" class="ghost" id="dlSel" disabled>Download selected</button>
+      </div>
+      <details id="chSettings" class="chset">
+        <summary>Settings for this channel <span class="muted" id="chSetState"></span></summary>
+        <div class="chbody">
+          <label class="chk"><input type="checkbox" id="chCustom"> Use custom settings for this channel (otherwise the global Settings tab applies)</label>
+          <div id="chFields" hidden>
+            <div class="trow"><span style="width:90px">Quality</span>
+              <select id="chQuality">
+                <option value="best">Best available</option>
+                <option value="1080">1080p</option>
+                <option value="720">720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+                <option value="audio">Audio only (mp3)</option>
+              </select>
+            </div>
+            <div id="chMusicHost" style="margin:8px 0"></div>
+            <div id="chCapsHost" style="margin:8px 0"></div>
+            <div id="chDubHost" style="margin:8px 0"></div>
+            <div id="chCropHost"></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button type="button" class="small" id="chSave">Save channel settings</button>
+            <span id="chMsg" class="muted"></span>
+          </div>
+        </div>
+      </details>
+      <div class="toolbar">
+        <input type="search" id="vSearch" placeholder="Search titles...">
+        <select id="vFilter" style="flex:none">
+          <option value="all">All videos</option>
+          <option value="new">Not downloaded</option>
+          <option value="done">Downloaded</option>
+        </select>
+        <label class="chk muted"><input type="checkbox" id="vAll"> Select all shown</label>
+      </div>
+      <div class="muted" id="vCount"></div>
+      <div class="vlist" id="vlist"></div>
+    </div>
+  </section>
+
+  <!-- ===================== Quick download ===================== -->
+  <section id="tab-quick" class="tab" hidden>
+    <div class="card">
+      <h2>Download a single video</h2>
+      <form id="qForm" class="row">
+        <input id="qUrl" type="url" placeholder="https://www.bilibili.com/video/BV..." required>
+        <button id="qFetch">Fetch</button>
+      </form>
+
+      <section id="qPreview">
+        <img id="qThumb" alt="" referrerpolicy="no-referrer">
+        <div id="qName" style="margin:10px 0 2px;font-weight:600"></div>
+        <div id="qMeta" class="muted" style="margin-bottom:12px"></div>
+
+        <div style="margin-bottom:12px">
+          <label class="chk"><input type="checkbox" id="trimOn"> Trim video (download only part)</label>
+          <div id="trimBox">
+            <div class="trow"><span>Start</span><input type="range" id="startR" min="0" value="0"><b id="startT">0:00</b></div>
+            <div class="trow"><span>End</span><input type="range" id="endR" min="0" value="0"><b id="endT">0:00</b></div>
+            <div class="muted" id="trimLen"></div>
+          </div>
+        </div>
+
+        <div id="qCropHost" style="margin-bottom:12px"></div>
+        <div id="qMusicHost" style="margin-bottom:12px"></div>
+        <div style="margin-bottom:12px">
+          <label class="chk"><input type="checkbox" id="qCaps"> Replace Chinese captions with English (uses the caption strip set in Settings)</label>
+          <div class="muted" id="qCapsNote"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label class="chk"><input type="checkbox" id="qDub"> Replace the voice with an English voice (uses the voice chosen in Settings)</label>
+          <div class="muted" id="qDubNote"></div>
+        </div>
+
+        <div class="row">
+          <select id="qQuality"></select>
+          <button type="button" class="ghost" id="useDefaults" title="Use the quality and crop from the Settings tab">Use my default settings</button>
+          <button type="button" id="qDl">Download</button>
+        </div>
+      </section>
+
+      <div id="qProg" hidden style="margin-top:16px">
+        <div class="bar"><div id="qpBar"></div></div>
+        <div id="qpStage"></div>
+        <div class="muted" id="qpStats"></div>
+      </div>
+      <div id="qMsg" role="status"></div>
+    </div>
+  </section>
+
+  <!-- ===================== Library ===================== -->
+  <section id="tab-library" class="tab" hidden>
+    <div class="card">
+      <div class="row wrap-row" style="margin-bottom:10px">
+        <h2 class="grow" style="margin:0">Downloaded videos</h2>
+        <select id="lChannel" style="flex:none;max-width:240px" title="Show one channel at a time"></select>
+        <input type="search" id="lSearch" placeholder="Search..." style="flex:none;width:200px">
+      </div>
+      <div class="muted" id="lCount"></div>
+      <div id="lList"></div>
+    </div>
+  </section>
+
+  <!-- ===================== Settings ===================== -->
+  <section id="tab-settings" class="tab" hidden>
+    <div class="card">
+      <h2>Download defaults</h2>
+      <p class="muted" style="margin-top:0">These apply to everything downloaded from the Dashboard.</p>
+      <div class="trow"><span style="width:90px">Quality</span>
+        <select id="sQuality">
+          <option value="best">Best available</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="360">360p</option>
+          <option value="audio">Audio only (mp3)</option>
+        </select>
+      </div>
+      <div class="trow"><span style="width:90px">Save to</span><input type="text" id="sDir" placeholder="Folder for downloaded videos"></div>
+      <div class="trow"><span style="width:90px">VPN</span>
+        <select id="sLookup">
+          <option value="auto">Auto: look videos up directly, download through the VPN</option>
+          <option value="default">Always use the system connection (VPN included)</option>
+        </select>
+      </div>
+      <div class="muted" id="sNet" style="margin-bottom:6px"></div>
+      <div class="trow"><span style="width:90px">Cookies</span><input type="text" id="sCookies" placeholder="Optional: path to a cookies.txt from a logged-in Bilibili session"></div>
+      <div class="muted">Cookies help if Bilibili temporarily blocks channel listing (error 352/412) and unlock higher qualities for premium accounts.</div>
+    </div>
+
+    <div class="card">
+      <h2>Background music</h2>
+      <p class="muted" style="margin-top:0">An AI model separates speech, music and other sounds, then the music is dropped. Uses the preview video link and frame time from the crop section below for the 15-second test.</p>
+      <div id="sMusicHost"></div>
+    </div>
+
+    <div class="card">
+      <h2>Chinese captions to English</h2>
+      <p class="muted" style="margin-top:0">For videos with Chinese captions burned into the picture: the old captions are blurred and English ones are drawn in their place. Uses the preview video and frame time from the crop section below. Channels can override this in their own settings.</p>
+      <div id="sCapsHost"></div>
+    </div>
+
+    <div class="card">
+      <h2>English voice</h2>
+      <p class="muted" style="margin-top:0">Replaces the spoken Chinese with an English male voice that reads the translated captions at their on-screen times. Sound effects stay; the original speech is muted only while a line is being spoken. Needs the caption and music tools too. Channels can override this in their own settings.</p>
+      <div id="sDubHost"></div>
+    </div>
+
+    <div class="card">
+      <h2>Crop / aspect ratio for all channel downloads</h2>
+      <p class="muted" style="margin-top:0">Add any video link to preview a real frame, then set the crop. It is applied to every video the Dashboard downloads.</p>
+      <div class="row wrap-row">
+        <input id="sPreviewUrl" type="url" placeholder="Video link used for the preview (any video)">
+        <button type="button" id="sLoad">Load preview</button>
+      </div>
+      <div class="trow" id="sTimeRow" hidden><span style="width:70px">Frame at</span><input type="range" id="sTime" min="0" value="0"><b id="sTimeT">0:00</b></div>
+      <div id="sCropHost" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:14px">
+        <button type="button" id="sSave">Save settings</button>
+        <span id="sMsg" class="muted"></span>
+      </div>
+    </div>
+  </section>
+
+  <p class="note">
+    {% if not has_ffmpeg %}ffmpeg not found: only pre-merged (lower quality) formats are available, and cropping is disabled. {% endif %}
+    Only download videos you own or have permission to save. Respect Bilibili's terms and creators' rights.
+  </p>
+</div>
+
+<!-- crop widget markup, cloned by app.js (once for Quick download, once for Settings) -->
+<template id="tpl-crop">
+  <div class="crop">
+    <label class="chk"><input type="checkbox" data-role="on"> <span data-role="label">Crop / change aspect ratio</span></label>
+    <div class="body" data-role="body" hidden>
+      <div class="row presetRow">
+        <select data-role="presets" title="Saved crop settings"></select>
+        <button type="button" class="small" data-role="savePreset">Save</button>
+        <button type="button" class="small ghost" data-role="delPreset">Delete</button>
+      </div>
+      <div class="trow">
+        <span>Ratio</span>
+        <select data-role="ratio">
+          <option value="free">Free (any shape)</option>
+          <option value="orig">Original</option>
+          <option value="16:9">16:9 (landscape)</option>
+          <option value="9:16">9:16 (Shorts / Reels / TikTok)</option>
+          <option value="1:1">1:1 (square)</option>
+          <option value="4:5">4:5 (Instagram portrait)</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+          <option value="21:9">21:9 (ultrawide)</option>
+          <option value="custom">Custom...</option>
+        </select>
+        <span class="customWrap" data-role="custom" hidden>
+          <input data-role="cw" type="number" min="1" max="99" value="16"> : <input data-role="ch" type="number" min="1" max="99" value="9">
+        </span>
+      </div>
+      <div class="cstage" data-role="stage">
+        <img data-role="img" alt="" referrerpolicy="no-referrer" draggable="false">
+        <div class="cbox" data-role="cbox">
+          <i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i>
+          <i data-h="n" class="edge"></i><i data-h="s" class="edge"></i><i data-h="w" class="edge"></i><i data-h="e" class="edge"></i>
+        </div>
+        <div class="cmsg" data-role="msg"></div>
+      </div>
+      <div class="trow" data-role="sizeRow"><span>Size</span><input type="range" data-role="size" min="10" max="100" value="100"><b data-role="sizeT">100%</b></div>
+      <div class="muted" data-role="info"></div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-music">
+  <div class="music">
+    <label class="chk"><input type="checkbox" data-role="on"> <span data-role="label">Remove background music (keeps speech and other sounds)</span></label>
+    <div class="muted" data-role="note"></div>
+    <div data-role="tryBox" hidden>
+      <div class="row wrap-row" style="margin-top:8px">
+        <button type="button" class="small ghost" data-role="try">Preview 15 seconds</button>
+        <span class="muted" data-role="status"></span>
+      </div>
+      <div class="players" data-role="players" hidden>
+        <div><div class="muted">Original</div><audio controls data-role="orig"></audio></div>
+        <div><div class="muted">Music removed</div><audio controls data-role="clean"></audio></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-dub">
+  <div class="dub">
+    <label class="chk"><input type="checkbox" data-role="on"> <span>Replace the voice with an English voice</span></label>
+    <div class="muted" data-role="note"></div>
+    <div data-role="box" hidden>
+      <div class="trow"><span style="width:60px">Who</span>
+        <select data-role="mode">
+          <option value="male">Always the male voice</option>
+          <option value="auto">Match the speaker (male voice for men; female only if the speakers are women)</option>
+          <option value="female">Always the female voice</option>
+        </select></div>
+      <div class="trow"><span style="width:60px">Male</span><select data-role="voice"></select>
+        <button type="button" class="small ghost" data-role="hear">Hear it</button></div>
+      <div class="trow" data-role="femaleRow"><span style="width:60px">Female</span><select data-role="voiceF"></select>
+        <button type="button" class="small ghost" data-role="hearF">Hear it</button></div>
+      <div class="trow"><span style="width:60px">Pace</span><input type="range" data-role="speed" min="0.8" max="1.2" step="0.05" value="1"><b data-role="speedT">1.00x</b></div>
+      <div class="muted" data-role="status"></div>
+      <audio controls data-role="audio" hidden style="max-width:100%"></audio>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-caps">
+  <div class="caps">
+    <label class="chk"><input type="checkbox" data-role="on"> <span data-role="label">Replace Chinese captions with English (blur the old ones, add English)</span></label>
+    <div class="muted" data-role="note"></div>
+    <div data-role="box" hidden>
+      <label class="chk" style="margin-top:6px"><input type="checkbox" data-role="auto" checked> Find where the captions are in each video automatically (recommended)</label>
+      <div class="muted" style="margin-top:6px">The strip below is used when that is off, or when no captions are found. Drag it over the Chinese captions and drag its top or bottom dots to resize it. Videos without captions are left as they are.</div>
+      <div data-role="regionHost"></div>
+      <div class="row wrap-row">
+        <button type="button" class="small ghost" data-role="try">Test on this frame</button>
+        <span class="muted" data-role="status"></span>
+      </div>
+      <div data-role="result" hidden style="margin-top:10px">
+        <img data-role="resImg" alt="" style="width:100%;max-width:640px;border-radius:10px">
+        <div class="muted">Read: <span data-role="zh"></span></div>
+        <div>English: <b data-role="en"></b></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>window.HAS_FFMPEG = {{ 'true' if has_ffmpeg else 'false' }};</script>
+<script src="/static/app.js"></script>
+</body>
+</html>
